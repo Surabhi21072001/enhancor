@@ -203,12 +203,12 @@
 
     <label>
       Skin Texture Level:
-      <input type="number" step="0.01" name="skin_texture_level" value="0.33">
+      <input type="number" step="0.01" name="skin_texture_level" value="0.30">
     </label>
 
     <label>
       Skin Realism Level:
-      <input type="number" step="0.1" name="skin_realism_Level" value="1.8">
+      <input type="number" step="0.1" name="skin_realism_Level" value="1.5">
     </label>
 
     <button type="submit">Upload and Enhance</button>
@@ -217,122 +217,164 @@
   <div class="status-block">
     <h3>Enhancement Status</h3>
     <ul id="resultsList"></ul>
+
+<div style="text-align: center; margin-top: 10px;">
+  <button id="downloadAllBtn" disabled style="padding: 10px 20px; font-size: 16px;">Download All</button>
+</div>
+
   </div>
 
-    <script>
-    const pendingRequests = {};
+<script>
+  const pendingRequests = {};
+  const completedFiles = {};
+  let totalExpected = 0;
 
-    document.getElementById('uploadForm').addEventListener('submit', async function (e) {
-        e.preventDefault();
+  document.getElementById('uploadForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
 
-        const form = e.target;
-        const formData = new FormData(form);
+      const form = e.target;
+      const formData = new FormData(form);
+      const res = await fetch('/enhance', {
+          method: 'POST',
+          body: formData
+      });
 
-        const res = await fetch('/enhance', {
-            method: 'POST',
-            body: formData
-        });
+      const data = await res.json();
+      const list = document.getElementById('resultsList');
+      list.innerHTML = '';
+      completedFiles.length = 0;
+      totalExpected = data.results.length;
 
-        const data = await res.json();
-        const list = document.getElementById('resultsList');
-        list.innerHTML = '';
+      if (data.results) {
+          const requestIds = [];
 
-        if (data.results) {
-            const requestIds = [];
+          data.results.forEach(result => {
+              const rid = result.request_id || result.requestId;
 
-            data.results.forEach(result => {
-                const rid = result.request_id || result.requestId;
+              const li = document.createElement('li');
+              li.textContent = `Request ID: ${rid} - Status: ${result.status || 'queued'}`;
+              list.appendChild(li);
 
-                const li = document.createElement('li');
-                li.textContent = `Request ID: ${rid} - Status: ${result.status || 'queued'}`;
-                list.appendChild(li);
+              if (rid) {
+                  const downloadBtn = document.createElement('button');
+                  downloadBtn.textContent = 'Download';
+                  downloadBtn.disabled = true;
 
-                if (rid) {
-                    const downloadBtn = document.createElement('button');
-                    downloadBtn.textContent = 'Download';
-                    downloadBtn.disabled = true;
+                  li.appendChild(document.createTextNode(' '));
+                  li.appendChild(downloadBtn);
 
-                    li.appendChild(document.createTextNode(' '));
-                    li.appendChild(downloadBtn);
+                  pendingRequests[rid] = { liElement: li, downloadBtn };
+                  requestIds.push(rid);
+              }
+          });
 
-                    pendingRequests[rid] = { liElement: li, downloadBtn };
-                    requestIds.push(rid);
-                }
-            });
+          // Start polling
+          const pollInterval = setInterval(async () => {
+              if (Object.keys(pendingRequests).length === 0) {
+                  clearInterval(pollInterval);
+                  return;
+              }
 
-            // Start polling for statuses every 5 seconds
-            const pollInterval = setInterval(async () => {
-                if (Object.keys(pendingRequests).length === 0) {
-                    clearInterval(pollInterval);
-                    return;
-                }
+              const pollingIds = Object.keys(pendingRequests);
+              const statusRes = await fetch('/status/batch', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ request_ids: pollingIds })
+              });
 
-                const pollingIds = Object.keys(pendingRequests);
-                const statusRes = await fetch('/status/batch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ request_ids: pollingIds })
-                });
+              const statusData = await statusRes.json();
+              if (statusData.results) {
+                  statusData.results.forEach(result => {
+                      const rid = result.request_id;
+                      const status = result.status;
 
-                const statusData = await statusRes.json();
+                      if (!rid || !status) return;
 
-                if (statusData.results) {
-                    statusData.results.forEach(result => {
-                        const rid = result.request_id;
-                        const status = result.status;
+                      const { liElement, downloadBtn } = pendingRequests[rid];
+                      liElement.textContent = `Request ID: ${rid} - Status: ${status}`;
 
-                        if (!rid || !status) {
-                            console.warn("Invalid result object:", result);
-                            return;
-                        }
+                      if (status === 'COMPLETED') {
+                          downloadBtn.disabled = false;
 
-                        const { liElement, downloadBtn } = pendingRequests[rid];
-                        liElement.textContent = `Request ID: ${rid} - Status: ${status}`;
+                          downloadBtn.onclick = async () => {
+                              downloadBtn.disabled = true;
+                              downloadBtn.textContent = 'Downloading...';
 
-                        if (status === 'COMPLETED') {
-                            downloadBtn.disabled = false;
+                              const downloadRes = await fetch('/download_ready', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ request_ids: [rid] })
+                              });
 
-                            downloadBtn.onclick = async () => {
-                                downloadBtn.disabled = true;
-                                downloadBtn.textContent = 'Downloading...';
+                              const downloadData = await downloadRes.json();
+                              const item = downloadData.results?.find(r => r.request_id === rid);
 
-                                const downloadRes = await fetch('/download_ready', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ request_ids: [rid] })
-                                });
+                              if (item?.status === 'COMPLETED') {
+                                  const fileName = item.file.split('/').pop();
+                                  const a = document.createElement('a');
+                                  a.href = '/download/' + fileName;
+                                  a.download = fileName;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  a.remove();
+                                  downloadBtn.textContent = 'Downloaded';
+                                  completedFiles[rid] = fileName;
+                              } else {
+                                  downloadBtn.textContent = 'Not Ready';
+                                  downloadBtn.disabled = false;
+                              }
+                          };
 
-                                const downloadData = await downloadRes.json();
-                                const item = downloadData.results?.find(r => r.request_id === rid);
+                          liElement.appendChild(document.createTextNode(' '));
+                          liElement.appendChild(downloadBtn);
+                          completedFiles[rid] = null;
+                          delete pendingRequests[rid];
 
-                                if (item?.status === 'COMPLETED') {
-                                    const a = document.createElement('a');
-                                    a.href = '/download/' + item.file.split('/').pop();
-                                    a.download = item.file.split('/').pop();
-                                    a.click();
-                                    downloadBtn.textContent = 'Downloaded';
-                                } else {
-                                    downloadBtn.textContent = 'Not Ready';
-                                    downloadBtn.disabled = false;
-                                }
-                            };
+                          // Enable "Download All" if all done
+                          if (Object.keys(completedFiles).length === totalExpected) {
+                              document.getElementById('downloadAllBtn').disabled = false;
+                          }
 
-                            liElement.appendChild(document.createTextNode(' '));
-                            liElement.appendChild(downloadBtn);
-                            delete pendingRequests[rid];
-                        } else if (status === 'FAILED') {
-                            liElement.textContent = `Request ID: ${rid} - Status: FAILED`;
-                            downloadBtn.remove();
-                            delete pendingRequests[rid];
-                        } else {
-                            // Still in queue or processing
-                            liElement.textContent = `Request ID: ${rid} - Status: ${status}`;
-                        }
-                    });
-                }
-            }, 5000);
-        }
-    });
+                      } else if (status === 'FAILED') {
+                          liElement.textContent = `Request ID: ${rid} - Status: FAILED`;
+                          downloadBtn.remove();
+                          delete pendingRequests[rid];
+                      }
+                  });
+              }
+          }, 5000);
+      }
+  });
+
+  // Handle Download All
+  document.getElementById('downloadAllBtn').addEventListener('click', async () => {
+      const allIds = Object.keys(completedFiles);
+      const downloadRes = await fetch('/download_ready', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_ids: allIds })
+      });
+
+      const downloadData = await downloadRes.json();
+
+      if (downloadData.results) {
+          downloadData.results.forEach(item => {
+              if (item.status === 'COMPLETED') {
+                  const fileName = item.file.split('/').pop();
+                  const a = document.createElement('a');
+                  a.href = '/download/' + fileName;
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+              }
+          });
+      }
+  });
 </script>
+
+
+
+
 </body>
 </html>
