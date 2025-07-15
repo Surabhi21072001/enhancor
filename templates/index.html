@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Image Enhancer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 30px;
+    }
+
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+
+    form {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 25px 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    label {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+    }
+
+    input[type="file"] {
+      margin-bottom: 20px;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .slider {
+      width: 40px;
+      height: 20px;
+      position: relative;
+      margin-left: 10px;
+    }
+
+    .slider input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-switch {
+      position: absolute;
+      cursor: pointer;
+      background-color: #ccc;
+      border-radius: 34px;
+      transition: 0.4s;
+      width: 100%;
+      height: 100%;
+    }
+
+    .toggle-switch:before {
+      content: "";
+      position: absolute;
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .toggle-switch {
+      background-color: #4CAF50;
+    }
+
+    input:checked + .toggle-switch:before {
+      transform: translateX(20px);
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 6px;
+      margin: 5px 0 15px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button {
+      background-color: #4CAF50;
+      color: white;
+      padding: 12px 18px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:disabled {
+      background-color: #aaa;
+      cursor: not-allowed;
+    }
+
+    .status-block {
+      max-width: 600px;
+      margin: 30px auto;
+      background-color: white;
+      padding: 20px 25px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    ul {
+      padding-left: 0;
+      list-style: none;
+    }
+
+    li {
+      margin-bottom: 10px;
+      background-color: #f0f0f0;
+      padding: 10px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-text {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <h1>AI Image Enhancer</h1>
+
+  <form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" name="images" multiple required><br>
+
+    <div class="toggle-label">
+      Nose
+      <span class="slider">
+        <input type="checkbox" name="nose" checked>
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Eye Glow
+      <span class="slider">
+        <input type="checkbox" name="eye_g">
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Left Brow
+      <span class="slider">
+        <input type="checkbox" name="l_brow">
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Right Brow
+      <span class="slider">
+        <input type="checkbox" name="r_brow">
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Mouth
+      <span class="slider">
+        <input type="checkbox" name="mouth" checked>
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Upper Lip
+      <span class="slider">
+        <input type="checkbox" name="u_lip" checked>
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Lower Lip
+      <span class="slider">
+        <input type="checkbox" name="l_lip" checked>
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Left Eye
+      <span class="slider">
+        <input type="checkbox" name="l_eye" checked>
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <div class="toggle-label">
+      Right Eye
+      <span class="slider">
+        <input type="checkbox" name="r_eye" checked>
+        <span class="toggle-switch"></span>
+      </span>
+    </div>
+
+    <label>
+      Skin Texture Level:
+      <input type="number" step="0.01" name="skin_texture_level" value="0.33">
+    </label>
+
+    <label>
+      Skin Realism Level:
+      <input type="number" step="0.1" name="skin_realism_Level" value="1.8">
+    </label>
+
+    <button type="submit">Upload and Enhance</button>
+  </form>
+
+  <div class="status-block">
+    <h3>Enhancement Status</h3>
+    <ul id="resultsList"></ul>
+  </div>
+
+  <script>
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const form = e.target;
+      const formData = new FormData(form);
+
+      const res = await fetch('/enhance', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      const list = document.getElementById('resultsList');
+      list.innerHTML = '';
+
+      if (data.results) {
+        data.results.forEach(r => {
+          const requestId = r.request_id || r.requestId;
+          const li = document.createElement('li');
+          const span = document.createElement('span');
+          span.className = 'status-text';
+          span.textContent = `Request ID: ${requestId} - Status: ${r.status}`;
+          li.appendChild(span);
+
+          if (r.status === 'queued' && requestId) {
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = 'Download';
+            downloadBtn.onclick = async () => {
+              downloadBtn.disabled = true;
+              downloadBtn.textContent = 'Checking...';
+
+              const res = await fetch('/download_ready', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_ids: [requestId] })
+              });
+
+              const resultData = await res.json();
+              const resultItem = resultData.results[0];
+              if (resultItem.status === 'COMPLETED') {
+                const a = document.createElement('a');
+                a.href = '/download/' + resultItem.file.split('/').pop();
+                a.download = resultItem.file.split('/').pop();
+                a.click();
+                downloadBtn.textContent = 'Downloaded';
+              } else {
+                downloadBtn.textContent = 'Not Ready';
+                downloadBtn.disabled = false;
+              }
+            };
+            li.appendChild(downloadBtn);
+          }
+
+          list.appendChild(li);
+        });
+      }
+    });
+  </script>
+</body>
+</html>
