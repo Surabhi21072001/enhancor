@@ -137,7 +137,9 @@ def check_multiple_statuses():
                 json={"request_id": rid}
             )
             if res.status_code == 200:
-                results.append(res.json())
+                result = res.json()
+                result["request_id"] = rid  
+                results.append(result)
             else:
                 results.append({
                     "request_id": rid,
