@@ -43,8 +43,8 @@ def enhance_images():
     enhancementMode = params.get("enhancementMode", "standard")
     portrait_upscale = params.get("portrait_upscale", "true").lower() == "true"
     portrait_depth = float(params.get("portrait_depth", 0.3))
-    skin_texture_level = float(params.get("skin_texture_level", 0.33))
-    skin_realism_Level = float(params.get("skin_realism_Level", 1.8))
+    skin_texture_level = float(params.get("skin_texture_level", 0.30))
+    skin_realism_Level = float(params.get("skin_realism_Level", 1.5))
 
     nose = params.get("nose", "true").lower() == "true"
     eye_g = params.get("eye_g", "false").lower() == "true"
